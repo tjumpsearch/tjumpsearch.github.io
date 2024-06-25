@@ -159,12 +159,30 @@
 
     function performSearch() {
         const query = document.getElementById('search-input').value.toLowerCase().split(' ');
+        console.log('Search terms:', query); // Debugging line
+
         const results = searchIndex.filter(page =>
-            query.every(term => page.words.includes(term))
+            query.every(term => page.words.map(word => word.toLowerCase()).includes(term))
         ).map(page => {
+            console.log('word_freq:', page.word_freq); // Debugging line
             const score = query.reduce((acc, term) => {
-                return acc + (page.word_freq[term] || 0);
+                const termLower = term.toLowerCase();
+                let termScore = 0;
+
+                // Base score for presence in words array
+                if (page.words.map(word => word.toLowerCase()).includes(termLower)) {
+                    termScore += 1;
+                }
+
+                // Additional score from word_freq
+                if (page.word_freq[termLower]) {
+                    termScore += page.word_freq[termLower];
+                }
+
+                console.log(`Term: ${term}, Score: ${termScore}`); // Debugging line
+                return acc + termScore;
             }, 0);
+            console.log('Page:', page.title, 'Score:', score); // Debugging line
             return { ...page, score };
         }).sort((a, b) => b.score - a.score)
           .slice(0, 10);
@@ -188,7 +206,7 @@
             resultItem.innerHTML = `
                 <h2><a href="${result.url}">${result.title}</a></h2>
                 <p class="snippet">${snippetWithHighlight}</p>
-                <p class="score">Relevance Score: ${result.score}</p>
+                <p class="score">Relevance Score: ${result.score.toFixed(2)}</p>
             `;
             resultsDiv.appendChild(resultItem);
         });
