@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        #search-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        #search-input {
+            flex-grow: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px 0 0 4px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #loading-container {
+            display: none;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #progress-bar {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #progress {
+            width: 0%;
+            height: 20px;
+            background-color: #3498db;
+            transition: width 0.5s;
+        }
+        #results {
+            background-color: white;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .result-item {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-item h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .result-item a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .result-item a:hover {
+            text-decoration: underline;
+        }
+        .snippet {
+            margin-bottom: 10px;
+        }
+        .score {
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Site Search</h1>
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Enter search terms...">
+        <button onclick="performSearch()">Search</button>
+    </div>
+    <div id="loading-container">
+        <p>Loading search index...</p>
+        <div id="progress-bar">
+            <div id="progress"></div>
+        </div>
+    </div>
+    <div id="results"></div>
+
+    <script>
+    let searchIndex = [];
+
+    // Load the search index when the page loads
+    document.getElementById('loading-container').style.display = 'block';
+    fetch('compact_index.json')
+        .then(response => {
+            const reader = response.body.getReader();
+            const contentLength = +response.headers.get('Content-Length');
+            let receivedLength = 0;
+
+            return new ReadableStream({
+                start(controller) {
+                    function push() {
+                        reader.read().then(({ done, value }) => {
+                            if (done) {
+                                controller.close();
+                                return;
+                            }
+                            receivedLength += value.length;
+                            const progress = (receivedLength / contentLength) * 100;
+                            document.getElementById('progress').style.width = progress + '%';
+                            controller.enqueue(value);
+                            push();
+                        });
+                    }
+                    push();
+                }
+            });
+        })
+        .then(stream => new Response(stream))
+        .then(response => response.json())
+        .then(data => {
+            searchIndex = data;
+            console.log('Search index loaded');
+            document.getElementById('loading-container').style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error loading search index:', error);
+            document.getElementById('loading-container').style.display = 'none';
+        });
+
+    function performSearch() {
+        const query = document.getElementById('search-input').value.toLowerCase().split(' ');
+        const results = searchIndex.filter(page =>
+            query.every(term => page.words.includes(term))
+        ).map(page => {
+            const score = query.reduce((acc, term) => {
+                return acc + (page.word_freq[term] || 0);
+            }, 0);
+            return { ...page, score };
+        }).sort((a, b) => b.score - a.score)
+          .slice(0, 10);
+
+        displayResults(results);
+    }
+
+    function displayResults(results) {
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = '';
+
+        if (results.length === 0) {
+            resultsDiv.innerHTML = '<p>No results found.</p>';
+            return;
+        }
+
+        results.forEach(result => {
+            const snippetWithHighlight = highlightTerms(result.snippet, document.getElementById('search-input').value.split(' '));
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            resultItem.innerHTML = `
+                <h2><a href="${result.url}">${result.title}</a></h2>
+                <p class="snippet">${snippetWithHighlight}</p>
+                <p class="score">Relevance Score: ${result.score}</p>
+            `;
+            resultsDiv.appendChild(resultItem);
+        });
+    }
+
+    function highlightTerms(text, terms) {
+        terms.forEach(term => {
+            const regex = new RegExp(term, 'gi');
+            text = text.replace(regex, match => `<strong>${match}</strong>`);
+        });
+        return text;
+    }
+    </script>
+</body>
+</html>
