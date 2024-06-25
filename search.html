@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Site Search</title>
+    <title>Tjump Video Search</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -94,7 +94,7 @@
     </style>
 </head>
 <body>
-    <h1>Site Search</h1>
+    <h1>Tjump Video Search</h1>
     <div id="search-container">
         <input type="text" id="search-input" placeholder="Enter search terms...">
         <button onclick="performSearch()">Search</button>
@@ -148,6 +148,14 @@
             console.error('Error loading search index:', error);
             document.getElementById('loading-container').style.display = 'none';
         });
+
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            performSearch();
+        }
+    }
+
+    document.getElementById('search-input').addEventListener('keyup', handleKeyPress);
 
     function performSearch() {
         const query = document.getElementById('search-input').value.toLowerCase().split(' ');
